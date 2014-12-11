@@ -14,6 +14,13 @@ docpadConfig = {
 			# The production url of our website
 			url: "http://website.com"
 
+			services:
+				buttons: ['FacebookLike']
+
+				twitterTweetButton: 'balupton'
+				twitterFollowButton: 'balupton'
+				disqus: 'marxin'
+
 			# Here are some old site urls that you would like to redirect from
 			oldUrls: [
 				'www.website.com',

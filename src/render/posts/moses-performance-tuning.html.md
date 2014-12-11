@@ -10,16 +10,16 @@ categories:
 Introduction
 ===
 
-As you maybe know, in these days people in SUSE have been working on projects related to [Hackweek Interstellar](https://hackweek.suse.com/). Idea behind the program is to provide a time slot for people's interests that do not play priority in every day workload. I chose to hack Moses machine translation software. During my studies at university, I met [Aleš Tamchyna](http://ufal.mff.cuni.cz/ales-tamchyna/) who is member of [Institute of Formal and Applied Linguistics](http://ufal.mff.cuni.cz/). I wanted to try a cooperation with someone who has been using an open source project with many instances installed on a quite big computer cluster. Second reason for spending time on the project was to improve my profiling skills, tightly coupled with generation code and assembly understanding.
+As you maybe know, every year people in SUSE work on projects related to [Hackweek Interstellar](https://hackweek.suse.com/). Idea behind the program is to provide a time slot for people's interests that do not play priority in every day workload. I chose to hack Moses machine translation software. During my studies at university, I met [Aleš Tamchyna](http://ufal.mff.cuni.cz/ales-tamchyna/) who is member of [Institute of Formal and Applied Linguistics](http://ufal.mff.cuni.cz/). I wanted to try a cooperation with someone who has been using an open source project with many instances installed on a quite big computer cluster. Second reason for spending time on the project was to improve my profiling skills, tightly coupled with code generation and assembly language understanding.
 
 Basic analysis
 ===
 
 As described in the previous section, I chose to utilize [Linux profiling infrastructure](https://perf.wiki.kernel.org/index.php/Tutorial) that presents statistics in user comfortable manner.
 
-{% codeblock %}
+``` bash
 perf record -g -- ./moses
-{% endcodeblock %}
+```
 
     +   8.83%  moses  libtcmalloc_minimal.so.4.1.2  [.] operator new(unsigned long)
     +   3.85%  moses  libc-2.18.so                  [.] __memcmp_sse4_1
@@ -52,7 +52,7 @@ perf record -g -- ./moses
 Following bunch of observations can be done at first glance:
 
 * memory allocation/deallocation dominates wall time: explanation comes up from fact that Moses creates many Hypothesis and related objects that are quickly evaluated and destroyed; a fast memory allocator would be really beneficial for such kind of application
-* \_\_memcmp_sse4_1: if you append __-g__ for perf, you are given a list of callers for each function; perf presents us that usage of memcmp is uniform distributed for various callers
+* \_\_memcmp_sse4\_1: if you append __-g__ for perf, you are given a list of callers for each function; perf presents us that usage of memcmp is uniform distributed for various callers
 * Moses::Hypothesis::~Hypothesis looks quite hot with about ~3.5%
 * if you dig in functions like Moses::Hypothesis::EvaluateWhenApplied you will see inlined function coming from WordsBitmap.h (more precisely functions GetFirstGapPos and GetNumWordsCovered)
 * std::set is chosen as data structure in Moses::BackwardsEdge::PushSuccessors, where m_seenPosition is utilized just as set container with contains operation; O(log n) is unnecessary complexity for such kind of usage
