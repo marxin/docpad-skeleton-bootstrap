@@ -21,6 +21,7 @@ As described in the previous section, I chose to utilize [Linux profiling infras
 perf record -g -- ./moses
 ```
 
+```
     +   8.83%  moses  libtcmalloc_minimal.so.4.1.2  [.] operator new(unsigned long)
     +   3.85%  moses  libc-2.18.so                  [.] __memcmp_sse4_1
     +   3.48%  moses  libtcmalloc_minimal.so.4.1.2  [.] operator delete(void*)
@@ -48,6 +49,7 @@ perf record -g -- ./moses
     +   1.10%  moses  moses                         [.] Moses::BackwardsEdge::BackwardsEdge(Moses::BitmapContainer const&, Moses::BitmapContainer&, Moses::TranslationOptionList const&
     +   1.09%  moses  moses                         [.] void std::__adjust_heap<__gnu_cxx::__normal_iterator<Moses::BitmapContainer**, std::vector<Moses::BitmapContainer*, std::alloc
     +   1.09%  moses  moses                         [.] Moses::HypothesisStackCubePruning::Add(Moses::Hypothesis*)
+```
 
 Following bunch of observations can be done at first glance:
 
@@ -55,7 +57,7 @@ Following bunch of observations can be done at first glance:
 * \_\_memcmp_sse4\_1: if you append __-g__ for perf, you are given a list of callers for each function; perf presents us that usage of memcmp is uniform distributed for various callers
 * Moses::Hypothesis::~Hypothesis looks quite hot with about ~3.5%
 * if you dig in functions like Moses::Hypothesis::EvaluateWhenApplied you will see inlined function coming from WordsBitmap.h (more precisely functions GetFirstGapPos and GetNumWordsCovered)
-* std::set is chosen as data structure in Moses::BackwardsEdge::PushSuccessors, where m_seenPosition is utilized just as set container with contains operation; O(log n) is unnecessary complexity for such kind of usage
+* std::set is chosen as data structure in Moses::BackwardsEdge::PushSuccessors, where m\_seenPosition is utilized just as set container with contains operation; O(log n) is unnecessary complexity for such kind of usage
 
 Optimization improvements
 ===
@@ -79,7 +81,7 @@ Moses executes dynamic casting for every feature function in every Hypothesis cl
 	  }
 	}
 
-My modification is presented in Github branch called [distortion-scorer-no-dyncast](https://github.com/marxin/mosesdecoder/tree/distortion-scorer-no-dyncast), where I created a separate static vector s_staticCollDistortion for every DistortionScoreProducer instance registered.
+My modification is presented as Github branch called [distortion-scorer-no-dyncast](https://github.com/marxin/mosesdecoder/tree/distortion-scorer-no-dyncast), where I created a separate static vector s_staticCollDistortion for every DistortionScoreProducer instance registered.
 
 Unordered set
 ---
@@ -113,7 +115,7 @@ and
 	return NOT_FOUND;
       }
 
-When one has relatively small set, we can use [GCC builtins](https://gcc.gnu.org/onlinedocs/gcc/Other-Builtins.html) presented by compiler: \_\_builtin_popcount and \_\_builtin_ctz. To fix the problem in more portable manner, I decided to use boost::dynamic_set, which is a data structure tailored to the usage we have. Moreover, __size()__ function (population count) is quite optimal, scanning each byte of a set and accessing precomputed number of bits in such number. For GatLastGapPos, I introduced fast path that can be used for all sets smaller or equal to 64 bits:
+When one has relatively small set, we can use [GCC builtins](https://gcc.gnu.org/onlinedocs/gcc/Other-Builtins.html) presented by compiler: \_\_builtin\_popcount and \_\_builtin_ctz. To fix the problem in more portable manner, I decided to use boost::dynamic_set, which is a data structure tailored to the usage we have. Moreover, __size()__ function (population count) is quite optimal, scanning each byte of a set and accessing precomputed number of bits in such number. For GatLastGapPos, I introduced fast path that can be used for all sets smaller or equal to 64 bits:
 
     if (m_new_bitmap.size() < UINT_SIZE)
 	{
@@ -122,12 +124,13 @@ When one has relatively small set, we can use [GCC builtins](https://gcc.gnu.org
 	  return index < m_new_bitmap.size() ? index : 0;
 	}
 
-It would be more usable if we push the change to boost library, I plan to open a pull request that will come up with a speed comparison.
+Data container replacement seems quite reasonable. But unfortunatelly, __operator<__ is implemented in opposite way than current implementaion. Suggested code replacement can be applied just in case dynamic_bit implements
+opposite [lexical order](http://www.boost.org/doc/libs/1_36_0/libs/dynamic_bitset/dynamic_bitset.html#op-less).
 
 Results
 ===
 
-For statistics presentation purpose, I decided to pick up two latest official GCC releases: 4.8.1 and 4.9.2. Unfortunatelly, in time of writing this post, GCC 5.0.0 was in stage1 phase and there was a blocker in C++ front-end. We tested 2000 sentences from English to Czech with common preferences on Sandy Bridge i7-4770 CPU @ 3.40GHz with 6 threads enabled in Moses configuration.
+For statistics presentation purpose, I decided to pick up two latest official GCC releases: 4.8.1 and 4.9.2. Unfortunatelly, in time of writing this post, GCC 5.0.0 was in stage3 phase and there was a blocker in C++ front-end. We tested 2000 sentences from English to Czech with common preferences on Sandy Bridge i7-4770 CPU @ 3.40GHz with 6 threads enabled in Moses configuration.
 
 <table class="table table-stripped table-bordered table-condensed">
 	<thead>
@@ -205,6 +208,7 @@ Future work
 
 Following performance report illustrates wall time distribution after aforementioned patches were applied.
 
+```
     +   9.90%  moses  libtcmalloc_minimal.so.4.1.2  [.] operator new(unsigned long)
     +   4.68%  moses  moses                         [.] Moses::Hypothesis::EvaluateWhenApplied(Moses::SquareMatrix const&)
     +   3.92%  moses  libtcmalloc_minimal.so.4.1.2  [.] operator delete(void*)
@@ -226,17 +230,18 @@ Following performance report illustrates wall time distribution after aforementi
     +   1.60%  moses  libstdc++.so.6.0.21           [.] __dynamic_cast
     +   1.46%  moses  moses                         [.] Moses::HypothesisScoreOrdererWithDistortion::operator()(Moses::Hypothesis const*, Moses::Hypothesis const*) const
     +   1.09%  moses  moses                         [.] Moses::BackwardsEdge::CreateHypothesis(Moses::Hypothesis const&, Moses::TranslationOption const&)
+```
 
 Possible space for speed improvement:
 
 * Moses::Hypothesis::EvaluateWhenApplied method is dominated by calculation of bit intervals. More precisely, for a given set represented in bits: 010011, we would like identify consecutive zero chunks: <3-4> and <6-6>. I am not familiar with any vector instruction solution which can help
-* Moses::SearchCubePruning::CreateForwardTodos heavily executes GetNumWordsCovered, it would be interesting to compare boost implementation with __builtin_popcount instruction
+* Moses::SearchCubePruning::CreateForwardTodos heavily executes GetNumWordsCovered, it would be interesting to compare boost implementation with \_\_builtin\_popcount instruction
 * Moses::Hypothesis::~Hypothesis is a place where FeatureFunction derives are deallocated; as I visited all derivatives, virtual destructor call looks quite expensive in this situations
 * bitset comparison dominates Moses::Hypothesis::RecombineCompare member function, where one can identify if compiler really optimizer fast path
 
 Final thoughts
 ===
 
-Hacking a performance-intensive open-source project with quite a long history can be really fun. As code base of the project was transformed to C++ with usage of boost library, many abstraction penalties were introduced. If you incorporate fact that the project has just a few active developers, you are given a great acceleration opportunity. I would like to help Aleš for many source code explanations and I hope this kick-off can be taken by community as hint for further project speed improvements.
+Hacking a performance-intensive open-source project with quite a long history can be really fun. As code base of the project was transformed to C++ with usage of boost library, many abstraction penalties were introduced. If you incorporate fact that the project has just a few active developers, you are given a great acceleration opportunity. I would like to thank Aleš for many source code explanations and I hope this kick-off can be taken by community as hint for further project speed improvements.
 
 Martin Liška (SUSE Labs)

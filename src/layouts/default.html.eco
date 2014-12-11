@@ -46,7 +46,7 @@
 					<span class="icon-bar"></span>
 					<span class="icon-bar"></span>
 				</button>
-				<a class="navbar-brand" href="/">Project name</a>
+				<a class="navbar-brand" href="/">marxin's blog</a>
 			</div>
 			<div class="navbar-collapse collapse">
 				<ul class="nav navbar-nav">
@@ -72,14 +72,9 @@
 		<section id="content" class="content">
 			<%- @content %>
 		</section>
-
-		<!-- Footer -->
-		<footer>
-			<p class="pull-left">&copy; Company <%- (new Date()).getFullYear() %></p>
-			<p class="pull-right">
-				This website was last updated at <%= @site.date.toISOString() %>
-			</p>
-		</footer>
+	   <footer>
+		   <p class="pull-left">&copy; Martin Liška <%- (new Date()).getFullYear() %></p>
+	   </footer>
 	</div><!-- /container -->
 
 	<!-- Scripts -->
