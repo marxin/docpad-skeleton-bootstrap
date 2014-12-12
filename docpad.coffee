@@ -28,7 +28,7 @@ docpadConfig = {
 			]
 
 			# The default title of our website
-			title: "Your Website"
+			title: "marxin's blog"
 
 			# The website description (for SEO)
 			description: """
@@ -41,10 +41,10 @@ docpadConfig = {
 				"""
 
 			# The website author's name
-			author: "Your Name"
+			author: "Martin Liška"
 
 			# The website author's email
-			email: "your@email.com"
+			email: "marxin.liska@gmail.com"
 
 			# Styles
 			styles: [
